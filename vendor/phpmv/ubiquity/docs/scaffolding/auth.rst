@@ -2,6 +2,9 @@
 Auth Controllers
 ================
 
+.. |br| raw:: html
+
+   <br />
 
 The Auth controllers allow you to perform basic authentification with:
  - login with an account
@@ -58,11 +61,11 @@ The generated controller:
 	 * {@inheritDoc}
 	 * @see \Ubiquity\controllers\auth\AuthController::isValidUser()
 	 */
-	public function _isValidUser($action=null) {
+	public function _isValidUser($action=null): bool {
 		return USession::exists($this->_getUserSessionKey());
 	}
 
-	public function _getBaseRoute() {
+	public function _getBaseRoute(): string {
 		return 'BaseAuthController';
 	}
    }
@@ -112,18 +115,18 @@ BaseAuthController modification
 	 * {@inheritDoc}
 	 * @see \Ubiquity\controllers\auth\AuthController::isValidUser()
 	 */
-	public function _isValidUser($action=null) {
+	public function _isValidUser($action=null): bool {
 		return USession::exists($this->_getUserSessionKey());
 	}
 
-	public function _getBaseRoute() {
+	public function _getBaseRoute(): string {
 		return 'BaseAuthController';
 	}
 	/**
 	 * {@inheritDoc}
 	 * @see \Ubiquity\controllers\auth\AuthController::_getLoginInputName()
 	 */
-	public function _getLoginInputName() {
+	public function _getLoginInputName(): string {
 		return "email";
 	}
    }
@@ -176,7 +179,7 @@ Modify the **BaseAuthController** controller:
     **/
    class BaseAuthController extends \Ubiquity\controllers\auth\AuthController{
    ...
-   	public function _displayInfoAsString() {
+   	public function _displayInfoAsString(): bool {
 		return true;
 	}
    }
@@ -313,11 +316,172 @@ Limitation of connection attempts
      * {@inheritDoc}
      * @see \Ubiquity\controllers\auth\AuthController::attemptsNumber()
      */
-    protected function attemptsNumber() {
+    protected function attemptsNumber(): int {
         return 3;
     }
    ...
    }
    
 
+Account recovery
+****************
+
+account recovery is used to reset the account password. |br|
+A password reset email is sent, to an email address corresponding to an active account.
+
+.. image:: /_static/images/auth/recoveryInit.png
+
+.. code-block:: php
+   :linenos:
+   :caption: app/controllers/PersoAuthController.php
+
+   class PersoAuthController extends \controllers\BaseAuth{
+   ...
+    protected function hasAccountRecovery():bool{
+        return true;
+    }
+
+    protected function _sendEmailAccountRecovery(string $email,string $validationURL,string $expire):bool {
+        MailerManager::start();
+        $mail=new AuthAccountRecoveryMail();
+        $mail->to($connected->getEmail());
+        $mail->setUrl($validationURL);
+        $mail->setExpire($expire);
+        return MailerManager::send($mail);
+    }
+
+    protected function passwordResetAction(string $email,string $newPasswordHash):bool {
+        //To implement for modifying the user password
+    }
+
+    protected function isValidEmailForRecovery(string $email):bool {
+        //To implement: return true if a valid account match with this email
+    }
+   }
+
+.. image:: /_static/images/auth/recoveryForm.png
+
+.. note::
+    By default, the link can only be used on the same machine, within a predetermined period of time (which can be modified by overriding the ``accountRecoveryDuration`` method).
+
+Activation of MFA/2FA
+**********************
+Multi-factor authentication can be enabled conditionally, based on the pre-logged-in user's information.
+
+.. note::
+	Phase 2 of the authentication is done in the example below by sending a random code by email.
+	The AuthMailerClass class is available in the ``Ubiquity-mailer`` package.
+
+.. code-block:: php
+   :linenos:
+   :caption: app/controllers/PersoAuthController.php
+   
+   class PersoAuthController extends \controllers\BaseAuth{
+   ...
+    /**
+     * {@inheritDoc}
+     * @see \Ubiquity\controllers\auth\AuthController::has2FA()
+     */
+    protected function has2FA($accountValue=null):bool{
+        return true;
+    }
+    
+    protected function _send2FACode(string $code, $connected):void {
+        MailerManager::start();
+        $mail=new AuthMailerClass();
+        $mail->to($connected->getEmail());
+        $mail->setCode($code);
+        MailerManager::send($mail);
+    }
+   ...
+   }
+   
+
+.. image:: /_static/images/auth/2fa-code.png
+
+
+.. note::
+	It is possible to customize the creation of the generated code, as well as the prefix used.
+	The sample below is implemented with ``robthree/twofactorauth`` library.
+
+.. code-block:: php
+   
+   	protected function generate2FACode():string{
+   		$tfa=new TwoFactorAuth();
+   		return $tfa->createSecret();
+   	}
+   	
+   	protected function towFACodePrefix():string{
+   		return 'U-';
+   	}
+   
+
+Account creation
+****************
+
+The activation of the account creation is also optional:
+
+.. image:: /_static/images/auth/account-creation-available.png
+
+.. code-block:: php
+   :linenos:
+   :caption: app/controllers/PersoAuthController.php
+   
+   class PersoAuthController extends \controllers\BaseAuth{
+   ...
+    protected function hasAccountCreation():bool{
+        return true;
+    }
+   ...
+   }
+   
+
+.. image:: /_static/images/auth/account-creation.png
+
+In this case, the _create method must be overridden in order to create the account:
+
+.. code-block:: php
+   
+   	protected function _create(string $login, string $password): ?bool {
+   		if(!DAO::exists(User::class,'login= ?',[$login])){
+   			$user=new User();
+   			$user->setLogin($login);
+   			$user->setPassword($password);
+   			URequest::setValuesToObject($user);//for the others params in the POST.
+   			return DAO::insert($user);
+   		}
+   		return false;
+   	}
+   
+
+You can check the validity/availability of the login before validating the account creation form:
+
+.. code-block:: php
+   
+   	protected function newAccountCreationRule(string $accountName): ?bool {
+   		return !DAO::exists(User::class,'login= ?',[$accountName]);
+   	}
+   
+
+.. image:: /_static/images/auth/account-creation-error.png
+
+A confirmation action (email verification) may be requested from the user:
+
+.. code-block:: php
+   
+   	protected function hasEmailValidation(): bool {
+   		return true;
+   	}
+   
+   	protected function _sendEmailValidation(string $email,string $validationURL,string $expire):void {
+   		MailerManager::start();
+   		$mail=new AuthEmailValidationMail();
+   		$mail->to($connected->getEmail());
+   		$mail->setUrl($validationURL);
+   		$mail->setExpire($expire);
+   		MailerManager::send($mail);
+   	}
+
+.. note::
+	It is possible to customize these parts by overriding the associated methods, or by modifying the interfaces in the concerned templates.
 

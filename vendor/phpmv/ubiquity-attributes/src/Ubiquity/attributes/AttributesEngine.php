@@ -17,6 +17,7 @@ use Ubiquity\attributes\items\rest\Authorization;
 use Ubiquity\attributes\items\rest\Rest;
 use Ubiquity\attributes\items\router\Delete;
 use Ubiquity\attributes\items\router\Get;
+use Ubiquity\attributes\items\router\NoRoute;
 use Ubiquity\attributes\items\router\Options;
 use Ubiquity\attributes\items\router\Patch;
 use Ubiquity\attributes\items\router\Post;
@@ -85,6 +86,7 @@ class AttributesEngine implements AnnotationsEngineInterface {
 			'patch' => Patch::class,
 			'delete' => Delete::class,
 			'options' => Options::class,
+			'noRoute' => NoRoute::class,
 			'rest' => Rest::class,
 			'authorization' => Authorization::class,
 			'autowired' => Autowired::class,

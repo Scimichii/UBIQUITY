@@ -73,7 +73,15 @@ abstract class CRUDController extends ControllerBase implements HasModelViewerIn
 			return $compo instanceof HtmlMessage;
 		} ) ] );
 	}
-	
+
+	/**
+	 * @param $member
+	 * @param boolean $callback
+	 * @throws \Exception
+	 *
+	 * @post
+	 */
+	#[\Ubiquity\attributes\items\router\Post]
 	public function updateMember($member, $callback = false) {
 		$instance = $_SESSION ['instance'] ?? null;
 		if (isset ( $instance )) {
@@ -165,7 +173,14 @@ abstract class CRUDController extends ControllerBase implements HasModelViewerIn
 			$this->index ();
 		}
 	}
-	
+
+	/**
+	 * @param $member
+	 * @throws \Exception
+	 *
+	 * @post
+	 */
+	#[\Ubiquity\attributes\items\router\Post]
 	public function editMember($member) {
 		$ids = URequest::post ( "id" );
 		$td = URequest::post ( "td" );
@@ -204,7 +219,9 @@ abstract class CRUDController extends ControllerBase implements HasModelViewerIn
 	 * Deletes an instance
 	 *
 	 * @param mixed $ids
+	 * @route("methods"=>["post","get"])
 	 */
+	#[\Ubiquity\attributes\items\router\Route(methods: ['get','post'])]
 	public function delete($ids) {
 		if (URequest::isAjax ()) {
 			$instance = $this->getModelInstance ( $ids );
@@ -248,7 +265,10 @@ abstract class CRUDController extends ControllerBase implements HasModelViewerIn
 	 * Updates an instance from the data posted in a form
 	 *
 	 * @return object The updated instance
+	 *
+	 * @post
 	 */
+	#[\Ubiquity\attributes\items\router\Post]
 	public function updateModel() {
 		$message = new CRUDMessage ( "Modifications were successfully saved", "Updating" );
 		$instance = $_SESSION ["instance"] ?? null;
@@ -293,26 +313,27 @@ abstract class CRUDController extends ControllerBase implements HasModelViewerIn
 			$model = $this->model;
 			$fkInstances = CRUDHelper::getFKIntances ( $instance, $model );
 			$semantic = $this->jquery->semantic ();
-			$grid = $semantic->htmlGrid ( "detail" );
+			$grid = $semantic->htmlGrid ( 'detail' );
 			if (($nb = \count ( $fkInstances )) > 0) {
 				$wide = intval ( 16 / $nb );
-				if ($wide < 4)
+				if ($wide < 4) {
 					$wide = 4;
-					foreach ( $fkInstances as $member => $fkInstanceArray ) {
-						$element = $viewer->getFkMemberElementDetails ( $member, $fkInstanceArray ["objectFK"], $fkInstanceArray ["fkClass"], $fkInstanceArray ["fkTable"] );
-						if (isset ( $element )) {
-							$grid->addCol ( $wide )->setContent ( $element );
-							$hasElements = true;
-						}
+				}
+				foreach ( $fkInstances as $member => $fkInstanceArray ) {
+					$element = $viewer->getFkMemberElementDetails ( $member, $fkInstanceArray ['objectFK'], $fkInstanceArray ['fkClass'], $fkInstanceArray ['fkTable'] );
+					if (isset ( $element )) {
+						$grid->addCol ( $wide )->setContent ( $element );
+						$hasElements = true;
 					}
-					if ($hasElements) {
-						echo $grid;
-						$url = $this->_getFiles ()->getDetailClickURL ( $this->model );
-						if (UString::isNotNull ( $url )) {
-							$this->detailClick ( $url );
-						}
+				}
+				if ($hasElements) {
+					echo $grid;
+					$url = $this->_getFiles ()->getDetailClickURL ( $this->model );
+					if (UString::isNotNull ( $url )) {
+						$this->detailClick ( $url );
 					}
-					echo $this->jquery->compile ( $this->view );
+				}
+				echo $this->jquery->compile ( $this->view );
 			}
 		} else {
 			$this->jquery->execAtLast ( "$('tr[data-ajax={$ids}]').trigger('click');" );

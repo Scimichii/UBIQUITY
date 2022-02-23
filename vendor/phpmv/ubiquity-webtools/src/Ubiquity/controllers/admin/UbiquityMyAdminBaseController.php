@@ -145,7 +145,7 @@ class UbiquityMyAdminBaseController extends Controller implements HasModelViewer
 		]
 	];
 
-	public const version = '2.4.14+';
+	public const version = '2.4.15';
 
 	public $style;
 
@@ -273,7 +273,7 @@ class UbiquityMyAdminBaseController extends Controller implements HasModelViewer
 			$this->jquery->activateLink("#mainMenu");
 			$security = [];
 			if (ServicesChecker::hasSecurity()) {
-				if ($this->jquery->getParam('nonce') === true && ContentSecurityManager::isStarted()) {
+				if ($this->jquery->getParam('csp') != null && ContentSecurityManager::isStarted()) {
 					$security = [
 						'nonce' => $this->nonce = ContentSecurityManager::getNonce('jsUtils')
 					];
@@ -1752,7 +1752,7 @@ class UbiquityMyAdminBaseController extends Controller implements HasModelViewer
 		return $this->_getAdminData()->getTableNames($offset);
 	}
 
-	public function _getBaseRoute() {
+	public function _getBaseRoute(): string {
 		return $this->_getFiles()->getAdminBaseRoute();
 	}
 
@@ -2017,6 +2017,7 @@ class UbiquityMyAdminBaseController extends Controller implements HasModelViewer
 					$card->addExtraContent($bts);
 					$cards->addItem($card);
 				}
+				$cards->addClass('horizontal');
 				AclManager::reloadFromSelectedProviders($selectedProviders);
 				$this->_getAclTabs();
 				$this->_setStyle($cards);

@@ -2,6 +2,9 @@
 
 namespace Ubiquity\controllers\auth;
 
+use Ubiquity\controllers\auth\traits\Auth2FATrait;
+use Ubiquity\controllers\auth\traits\AuthAccountCreationTrait;
+use Ubiquity\controllers\auth\traits\AuthAccountRecoveryTrait;
 use Ubiquity\utils\http\USession;
 use Ubiquity\utils\http\URequest;
 use Ubiquity\utils\flash\FlashMessage;
@@ -12,6 +15,8 @@ use Ubiquity\controllers\Startup;
 use Ajax\service\Javascript;
 use Ubiquity\utils\http\UCookie;
 use Ubiquity\controllers\semantic\InsertJqueryTrait;
+use Ajax\semantic\html\collections\form\HtmlForm;
+use Ajax\php\ubiquity\JsUtils;
 
 /**
  * Controller Auth
@@ -19,7 +24,7 @@ use Ubiquity\controllers\semantic\InsertJqueryTrait;
  * @property \Ajax\php\ubiquity\JsUtils $jquery
  */
 abstract class AuthController extends Controller {
-	use AuthControllerCoreTrait,AuthControllerVariablesTrait,AuthControllerOverrideTrait,InsertJqueryTrait;
+	use AuthControllerCoreTrait,AuthControllerVariablesTrait,AuthControllerOverrideTrait,InsertJqueryTrait,Auth2FATrait,AuthAccountCreationTrait,AuthAccountRecoveryTrait;
 
 	/**
 	 *
@@ -31,7 +36,7 @@ abstract class AuthController extends Controller {
 	protected $_actionParams;
 	protected $_noAccessMsg;
 	protected $_loginCaption;
-	protected $_attemptsSessionKey = "_attempts";
+	protected $_attemptsSessionKey = '_attempts';
 	protected $_controllerInstance;
 	protected $_compileJS = true;
 	protected $_invalid=false;
@@ -42,11 +47,15 @@ abstract class AuthController extends Controller {
 		$this->_controller = Startup::getController ();
 		$this->_action = Startup::getAction ();
 		$this->_actionParams = Startup::getActionParams ();
-		$this->_noAccessMsg = new FlashMessage ( "You are not authorized to access the page <b>{url}</b> !", "Forbidden access", "error", "warning circle" );
-		$this->_loginCaption = "Log in";
+		$this->_noAccessMsg = new FlashMessage ( 'You are not authorized to access the page <b>{url}</b> !', 'Forbidden access', 'error', 'warning circle' );
+		$this->_loginCaption = 'Log in';
 		$this->_controllerInstance = $instance;
-		if (isset ( $instance ))
+		if (isset ( $instance )){
 			Startup::injectDependences ( $instance );
+		}
+		if($this->useAjax() && !URequest::isAjax()) {
+			$this->_addAjaxBehavior($instance->jquery??$this->jquery);
+		}
 	}
 
 	public function index() {
@@ -57,7 +66,12 @@ abstract class AuthController extends Controller {
 				return;
 			}
 		}
-		$this->authLoadView ( $this->_getFiles ()->getViewIndex (), [ "action" => $this->getBaseUrl () . "/connect","loginInputName" => $this->_getLoginInputName (),"loginLabel" => $this->loginLabel (),"passwordInputName" => $this->_getPasswordInputName (),"passwordLabel" => $this->passwordLabel (),"rememberCaption" => $this->rememberCaption () ] );
+		if($this->useAjax()){
+			$this->_addFrmAjaxBehavior('frm-login');
+		}
+		$vData=[ 'action' => $this->getBaseUrl () . '/connect','loginInputName' => $this->_getLoginInputName (),'loginLabel' => $this->loginLabel (),'passwordInputName' => $this->_getPasswordInputName (),'passwordLabel' => $this->passwordLabel (),'rememberCaption' => $this->rememberCaption () ];
+		$this->addAccountCreationViewData($vData,true);
+		$this->authLoadView ( $this->_getFiles ()->getViewIndex (), $vData );
 	}
 
 	/**
@@ -75,34 +89,47 @@ abstract class AuthController extends Controller {
 	 * @param array|string $urlParts
 	 */
 	public function noAccess($urlParts) {
-		if (! is_array ( $urlParts )) {
-			$urlParts = explode ( ".", $urlParts );
+		if (! \is_array ( $urlParts )) {
+			$urlParts = \explode ( '.', $urlParts );
 		}
-		USession::set ( "urlParts", $urlParts );
+		USession::set ( 'urlParts', $urlParts );
 		$fMessage = $this->_noAccessMsg;
 		$this->noAccessMessage ( $fMessage );
-		$message = $this->fMessage ( $fMessage->parseContent ( [ "url" => implode ( "/", $urlParts ) ] ) );
+		$message = $this->fMessage ( $fMessage->parseContent ( [ 'url' => \implode ( '/', $urlParts ) ] ) );
+		
 		if (URequest::isAjax ()) {
-			$this->jquery->get ( $this->_getBaseRoute () . "/info/f", "#_userInfo", [ "historize" => false,"jqueryDone" => "replaceWith","hasLoader" => false,"attr" => "" ] );
+			$this->jquery->get ( $this->_getBaseRoute () . '/info/f', '#_userInfo', [ 'historize' => false,'jqueryDone' => 'replaceWith','hasLoader' => false,'attr' => '' ] );
 			$this->jquery->compile ( $this->view );
 		}
-
-		$this->authLoadView ( $this->_getFiles ()->getViewNoAccess (), [ "_message" => $message,"authURL" => $this->getBaseUrl (),"bodySelector" => $this->_getBodySelector (),"_loginCaption" => $this->_loginCaption ] );
+		$vData=[ '_message' => $message,'authURL' => $this->getBaseUrl (),'bodySelector' => $this->_getBodySelector (),'_loginCaption' => $this->_loginCaption ];
+		$this->addAccountCreationViewData($vData);
+		$this->authLoadView ( $this->_getFiles ()->getViewNoAccess (), $vData);
 	}
 
 	/**
 	 * Override to implement the complete connection procedure
+	 *
+	 * @post
 	 */
+	#[\Ubiquity\attributes\items\router\Post]
 	public function connect() {
 		if (URequest::isPost ()) {
 			if ($connected = $this->_connect ()) {
-				if (isset ( $_POST ["ck-remember"] )) {
+				if (isset ( $_POST ['ck-remember'] )) {
 					$this->rememberMe ( $connected );
 				}
 				if (USession::exists ( $this->_attemptsSessionKey )) {
 					USession::delete ( $this->_attemptsSessionKey );
 				}
-				$this->onConnect ( $connected );
+				if($this->has2FA($connected)){
+					$this->initializeAuth();
+					USession::set($this->_getUserSessionKey().'-2FA', $connected);
+					$this->send2FACode();
+					$this->confirm();
+					$this->finalizeAuth();
+				}else{
+					$this->onConnect ( $connected );
+				}
 			} else {
 				$this->_invalid=true;
 				$this->initializeAuth();
@@ -114,11 +141,14 @@ abstract class AuthController extends Controller {
 
 	/**
 	 * Default Action for invalid creditentials
+	 *
+	 * @noRoute()
 	 */
+	#[\Ubiquity\attributes\items\router\NoRoute]
 	public function badLogin() {
-		$fMessage = new FlashMessage ( "Invalid creditentials!", "Connection problem", "warning", "warning circle" );
+		$fMessage = new FlashMessage ( 'Invalid creditentials!', 'Connection problem', 'warning', 'warning circle' );
 		$this->badLoginMessage ( $fMessage );
-		$attemptsMessage = "";
+		$attemptsMessage = '';
 		if (($nbAttempsMax = $this->attemptsNumber ()) !== null) {
 			$nb = USession::getTmp ( $this->_attemptsSessionKey, $nbAttempsMax );
 			$nb --;
@@ -128,37 +158,37 @@ abstract class AuthController extends Controller {
 			if ($nb == 0) {
 				$fAttemptsNumberMessage = $this->noAttempts ();
 			} else {
-				$fAttemptsNumberMessage = new FlashMessage ( "<i class='ui warning icon'></i> You still have {_attemptsCount} attempts to log in.", null, "bottom attached warning", "" );
+				$fAttemptsNumberMessage = new FlashMessage ( '<i class="ui warning icon"></i> You still have {_attemptsCount} attempts to log in.', null, 'bottom attached warning', '' );
 			}
 			USession::setTmp ( $this->_attemptsSessionKey, $nb, $this->attemptsTimeout () );
 			$this->attemptsNumberMessage ( $fAttemptsNumberMessage, $nb );
-			$fAttemptsNumberMessage->parseContent ( [ "_attemptsCount" => $nb,"_timer" => "<span id='timer'></span>" ] );
-			$attemptsMessage = $this->fMessage ( $fAttemptsNumberMessage, "timeout-message" );
+			$fAttemptsNumberMessage->parseContent ( [ '_attemptsCount' => $nb,'_timer' => '<span id="timer"></span>' ] );
+			$attemptsMessage = $this->fMessage ( $fAttemptsNumberMessage, 'timeout-message' );
 			$fMessage->addType ( "attached" );
 		}
-		$message = $this->fMessage ( $fMessage, "bad-login" ) . $attemptsMessage;
-		$this->authLoadView ( $this->_getFiles ()->getViewNoAccess (), [ "_message" => $message,"authURL" => $this->getBaseUrl (),"bodySelector" => $this->_getBodySelector (),"_loginCaption" => $this->_loginCaption ] );
+		$message = $this->fMessage ( $fMessage, 'bad-login' ) . $attemptsMessage;
+		$this->authLoadView ( $this->_getFiles ()->getViewNoAccess (), [ '_message' => $message,'authURL' => $this->getBaseUrl (),'bodySelector' => $this->_getBodySelector (),'_loginCaption' => $this->_loginCaption ] );
 	}
-
+	
 	/**
 	 * Logout action
 	 * Terminate the session and display a logout message
 	 */
 	public function terminate() {
 		USession::terminate ();
-		$fMessage = new FlashMessage ( "You have been properly disconnected!", "Logout", "success", "checkmark" );
+		$fMessage = new FlashMessage ( 'You have been properly disconnected!', 'Logout', 'success', 'checkmark' );
 		$this->terminateMessage ( $fMessage );
 		$message = $this->fMessage ( $fMessage );
-		$this->authLoadView ( $this->_getFiles ()->getViewNoAccess (), [ "_message" => $message,"authURL" => $this->getBaseUrl (),"bodySelector" => $this->_getBodySelector (),"_loginCaption" => $this->_loginCaption ] );
+		$this->authLoadView ( $this->_getFiles ()->getViewNoAccess (), [ '_message' => $message,'authURL' => $this->getBaseUrl (),'bodySelector' => $this->_getBodySelector (),'_loginCaption' => $this->_loginCaption ] );
 	}
 
 	public function _disConnected() {
-		$fMessage = new FlashMessage ( "You have been disconnected from the application!", "Logout", "", "sign out" );
+		$fMessage = new FlashMessage ( 'You have been disconnected from the application!', 'Logout', '', 'sign out' );
 		$this->disconnectedMessage ( $fMessage );
 		$message = $this->fMessage ( $fMessage );
-		$this->jquery->getOnClick ( "._signin", $this->getBaseUrl (), $this->_getBodySelector (), [ "stopPropagation" => false,"preventDefault" => false ] );
-		$this->jquery->execOn ( "click", "._close", "window.open(window.location,'_self').close();" );
-		return $this->jquery->renderView ( $this->_getFiles ()->getViewDisconnected (), [ "_title" => "Session ended","_message" => $message ], true );
+		$this->jquery->getOnClick ( '._signin', $this->getBaseUrl (), $this->_getBodySelector (), [ 'stopPropagation' => false,'preventDefault' => false ] );
+		$this->jquery->execOn ( 'click', '._close', "window.open(window.location,'_self').close();" );
+		return $this->jquery->renderView ( $this->_getFiles ()->getViewDisconnected (), [ "_title" => 'Session ended','_message' => $message ], true );
 	}
 
 	/**
@@ -171,16 +201,16 @@ abstract class AuthController extends Controller {
 	 */
 	public function info($force = null) {
 		if (isset ( $force )) {
-			$displayInfoAsString = ($force === true) ? true : false;
+			$displayInfoAsString = $force === true;
 		} else {
 			$displayInfoAsString = $this->_displayInfoAsString ();
 		}
-		return $this->loadView ( $this->_getFiles ()->getViewInfo (), [ "connected" => USession::get ( $this->_getUserSessionKey () ),"authURL" => $this->getBaseUrl (),"bodySelector" => $this->_getBodySelector () ], $displayInfoAsString );
+		return $this->loadView ( $this->_getFiles ()->getViewInfo (), [ 'connected' => USession::get ( $this->_getUserSessionKey () ),'authURL' => $this->getBaseUrl (),'bodySelector' => $this->_getBodySelector () ], $displayInfoAsString );
 	}
-
+	
 	public function checkConnection() {
 		UResponse::asJSON ();
-		echo "{\"valid\":" . UString::getBooleanStr ( $this->_isValidUser () ) . "}";
+		echo \json_encode(['valid'=> UString::getBooleanStr ( $this->_isValidUser () )]);
 	}
 
 	/**
@@ -235,7 +265,7 @@ abstract class AuthController extends Controller {
 			if(Startup::getAction()!=='connect') {
 				$this->finalizeAuth();
 			}
-			$this->jquery->execAtLast ( "if($('#_userInfo').length){\$('#_userInfo').html(" . preg_replace ( "/$\R?^/m", "", Javascript::prep_element ( $this->info () ) ) . ");}" );
+			$this->jquery->execAtLast ( "if($('#_userInfo').length){\$('#_userInfo').replaceWith(" . \preg_replace ( "/$\R?^/m", "", Javascript::prep_element ( $this->info () ) ) . ");}" );
 			if ($this->_compileJS) {
 				echo $this->jquery->compile ();
 			}
@@ -243,6 +273,9 @@ abstract class AuthController extends Controller {
 	}
 
 	protected function finalizeAuth() {
+		if (!URequest::isAjax()) {
+			$this->loadView('@activeTheme/main/vFooter.html');
+		}
 	}
 
 	/**
@@ -257,6 +290,9 @@ abstract class AuthController extends Controller {
 	}
 
 	protected function initializeAuth() {
+		if (!URequest::isAjax()) {
+			$this->loadView('@activeTheme/main/vHeader.html');
+		}
 	}
 
 	/**
@@ -271,5 +307,22 @@ abstract class AuthController extends Controller {
 			$finalize = $initialize;
 		}
 		Startup::forward ( $url, $initialize, $finalize );
+	}
+	
+	public function _addAjaxBehavior(JsUtils $jquery=null,$ajaxParameters=['hasLoader'=>'$(this).children(".button")','historize'=>false,'listenerOn'=>'body']){
+		$jquery??=$this->jquery;
+		$jquery->getHref('.ajax[data-target]','', $ajaxParameters);
+		$jquery->postFormAction('.ui.form',$this->_getBodySelector(),$ajaxParameters);
+	}
+
+	public function _addFrmAjaxBehavior($id):HtmlForm{
+		$frm=$this->jquery->semantic()->htmlForm($id);
+		$frm->addExtraFieldRule($this->_getLoginInputName(),'empty');
+		$frm->addExtraFieldRule($this->_getPasswordInputName(),'empty');
+		$frm->setValidationParams(['inline'=>true,'on'=>'blur']);
+		return $frm;
+	}
+	public function _init(){
+		
 	}
 }

@@ -6,17 +6,23 @@ use Ubiquity\cache\ClassUtils;
 use Ubiquity\utils\http\USession;
 use Ubiquity\utils\http\UCookie;
 
+/**
+ * Trait AuthControllerOverrideTrait
+ *
+ */
 trait AuthControllerOverrideTrait {
 	
 	abstract public function badLogin();
+
+	abstract public function _getUserSessionKey():string;
 	
 	/**
 	 * To override
 	 * Return the base route for this Auth controller
 	 * @return string
 	 */
-	public function _getBaseRoute(){
-		return ClassUtils::getClassSimpleName(get_class($this));
+	public function _getBaseRoute(): string {
+		return ClassUtils::getClassSimpleName(\get_class($this));
 	}
 	
 	/**
@@ -31,20 +37,13 @@ trait AuthControllerOverrideTrait {
 	abstract protected function onConnect($connected);
 	
 	/**
-	 * To override for defining a new action when creditentials are invalid
+	 * To override for defining a new action when creditentials are invalid.
 	 */
 	protected function onBadCreditentials(){
 		$this->badLogin();
 	}
 	
-	/**
-	 * To override for defining user session key, default : "activeUser"
-	 * @return string
-	 */
-	public function _getUserSessionKey(){
-		return "activeUser";
-	}
-	
+
 	/**
 	 * To override for getting active user, default : USession::get("activeUser")
 	 * @return string
@@ -58,7 +57,7 @@ trait AuthControllerOverrideTrait {
 	 * @param string $action
 	 * return boolean true if activeUser is valid
 	 */
-	abstract public function _isValidUser($action=null);
+	abstract public function _isValidUser($action=null):bool;
 	
 	/**
 	 * Returns the value from connected user to save it in the cookie for auto connection
@@ -103,5 +102,6 @@ trait AuthControllerOverrideTrait {
 	protected function getFiles ():AuthFiles{
 		return new AuthFiles();
 	}
+
 }
 

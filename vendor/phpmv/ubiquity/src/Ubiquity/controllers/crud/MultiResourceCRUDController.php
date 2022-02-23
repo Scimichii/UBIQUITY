@@ -129,14 +129,14 @@ abstract class MultiResourceCRUDController extends \Ubiquity\controllers\crud\CR
 			$this->jquery->execAtLast('$(".dropdown").dropdown();');
 			$this->jquery->getOnClick('.item[data-href]','','.crud',['hasLoader'=>false,'preventDefault'=>false,'stopPropagation'=>false,'attr'=>'data-href']);
 		}
-		$this->jquery->getHref('a[href]',"",['historize'=>false,'hasLoader'=>true]);
+		$this->jquery->getHref('a[href]',"",['historize'=>false,'hasLoader'=>false]);
 	}
 	
 	protected function getIndexType():array {
 		return ['four link cards','card'];
 	}
 	
-	protected function getModelName(){
+	protected function getModelName(): string {
 		return Startup::getNS('models') . \ucfirst($this->resource);
 	}
 	
@@ -145,7 +145,7 @@ abstract class MultiResourceCRUDController extends \Ubiquity\controllers\crud\CR
 	public function showDetail($ids) {
 		$this->detailClick('showModelClick','.crud',[
 				"attr" => "data-ajax",
-				"hasLoader" => true
+				"hasLoader" => false
 		]);
 		parent::showDetail($ids);
 		

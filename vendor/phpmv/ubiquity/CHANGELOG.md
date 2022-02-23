@@ -8,6 +8,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Nothing
 
+## [2.4.11] 2022-02-22
+### Updated (breaking change)
+- AuthControllers refactoring
+- CRUDControllers (return types added on methods to override)
+
+With an update on an existing project, the following error may occur in derived classes of `AuthController`, `AuthFiles`, `CRUDController`, `CRUDFiles`:
+> Fatal error: Declaration of controllers\auth\files\MyAuthFiles::getViewIndex() must be compatible with Ubiquity\controllers\auth\AuthFiles::getViewIndex(): string
+
+The signature of the methods of AuthController, AuthFiles, CRUDController, CRUDFiles has changed, by adding the return types:
+
+It is therefore necessary to add this return types on the overridden methods
+```php
+	public function getViewIndex():string {
+		return 'MyAuth/index.html';
+	}
+```
+
+### Added
+In Auth controllers:
+- Account recovery (password reset)
+- `AuthControllerConfig`, `UASystem`, `UConfigFile` classes
+
+## [2.4.10] 2022-02-13
+### Added
+In Auth controllers:
+- Two factor authentification
+- Default account creation + email validation
+
+In Router:
+- Action parameters typing with Router (int, float, bool)
+
+### Fixed
+- **RestServer** Fix php 8.1 depreciation
+- php 8.1 depreciations in **ModelsCacheUpdated**, **ValidatorMultiple**...
+
+### Updated
+- Default index css style
+
 ## [2.4.9] 2022-01-01
 
 ### Added

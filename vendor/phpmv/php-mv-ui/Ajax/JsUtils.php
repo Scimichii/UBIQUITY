@@ -327,12 +327,12 @@ abstract class JsUtils {
 			$this->_compileLibrary($this->_semantic, $view);
 		}
 
+		$this->jquery_code_for_compile = \array_merge($this->jquery_code_for_compile, $this->jquery_code_for_compile_at_last);
+
 		if (\count($this->jquery_code_for_compile) == 0) {
 			return;
 		}
-
-		$this->jquery_code_for_compile = \array_merge($this->jquery_code_for_compile, $this->jquery_code_for_compile_at_last);
-
+		
 		// Inline references
 		$script = $this->ready(implode('', $this->jquery_code_for_compile));
 		if ($this->params["defer"]) {
@@ -512,5 +512,9 @@ abstract class JsUtils {
 
 	public function getInjected() {
 		return $this->injected;
+	}
+	
+	public function setParam(string $param,$value){
+		$this->params[$param]=$value;
 	}
 }
