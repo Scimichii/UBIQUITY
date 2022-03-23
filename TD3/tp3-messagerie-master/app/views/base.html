@@ -1,0 +1,19 @@
+{% block header %}
+    <style>
+    a.active{
+        font-weight: bold;
+        color: red;
+    }
+    a.active::after { 
+        content: " →";
+    }
+    </style>
+    <h1>Messagerie Administration</h1>
+{% endblock %}
+ 
+{% block message %}
+    {{ message | raw }}
+{% endblock %}
+ 
+{% block body %}
+{% endblock %}

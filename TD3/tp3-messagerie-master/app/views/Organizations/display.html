@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block body %}
+<h2 class="ui header">
+    {{orga.name}}
+    <div class="sub header">{{orga.domain}}</div>
+</h2>
+<div class="ui two columns grid">
+    <div class="four wide column">
+        <h3 class="ui header">
+            <i class="ui users icon"></i>
+            <div class="content">Groupes</div>
+        </h3>
+        <ul>
+        {% for groupe in orga.groupes %}
+            <li>{{ groupe }}</li>
+        {% endfor %}
+        </ul>
+    </div>
+    <div class="twelve wide column">
+        <div id="users">
+        </div>
+    </div>
+</div>
+{% endblock %}
