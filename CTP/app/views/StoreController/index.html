@@ -1,0 +1,11 @@
+<div style="display: flex; flex-wrap : wrap">
+    {% for elm in prods %}
+    <div style=" background-color: aliceblue; width: 30%; margin: 20px;" class="ui attached segment">
+        <div href="StoreController//{{elm}} " style="font-weight:Bold; font-size:30px">{{elm.name}}</div>
+        <p>{{elm.description}}</p>
+
+        <a href="StoreController/Otherproducts/{{elm.id}}" style = "background-color: #333333; display: inline-block; text-align: center;">Consulter plus de Produit</a>
+    </div>
+
+    {% endfor %}
+</div>

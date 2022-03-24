@@ -1,0 +1,23 @@
+<!--View associated to OtherProducts action of StoreController controller -->
+<div style="display: flex; flex-wrap : wrap;color:blueviolet;">
+    {% for elm in prod.getProducts() %}
+    <div class="ui cards" style="width: 30%;margin: 1px;">
+        <div class="card">
+            <div class="image">
+                {{ img('store/' ~ elm.image ~ '.jpg') }}
+            </div>
+            <div class="content">
+                <div class="header">{{elm.name}}</div>
+                    {{elm.price}} euros
+            </div>
+
+            <div class="ui button">
+                <i class="add icon"></i>
+                        <p>To cart</p>
+            </div>
+        </div>
+    </div>
+
+    {% endfor %}
+</div>
+
