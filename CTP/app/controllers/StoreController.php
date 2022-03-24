@@ -32,8 +32,9 @@ class StoreController extends \controllers\ControllerBase{
 	public function addtocart($idproduct,$count){
         $prod = DAO::getById(Section::class,"id=".$idproduct,"count = .$count");
 		$this->index();
+        USession::start();
 
-        if(USession::get("checkout") == null){
+        if(USession::get("idproduct") != null){
             USession::set("checkout",[[$idproduct=>1]]);
 
 
