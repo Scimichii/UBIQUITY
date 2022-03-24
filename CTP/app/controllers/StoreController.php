@@ -48,8 +48,8 @@ class StoreController extends \controllers\ControllerBase{
 
 	#[Route(path: "Store/allProducts",name: "store.allProducts")]
 	public function allProducts(){
-        $prods = DAO::getAll(Section::class);
-		$this->loadView('StoreController/allProducts.html',compact('prods'));
+        $prod = DAO::getAll(Product::class);
+		$this->loadView('StoreController/allProducts.html',compact('prod'));
 
 	}
 
